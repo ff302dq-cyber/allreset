@@ -12,9 +12,12 @@ from astrbot.api.star import Context, Star, register
     "astrbot_plugin_reset_all_contexts",
     "批量重置上下文",
     "管理员命令，一次清空所有群聊和私聊的 AstrBot 短期上下文",
-    "1.0.0",
+    "1.0.1",
 )
 class ResetAllContextsPlugin(Star):
+    PREVIEW_COMMAND = "reset_all_preview"
+    CONFIRM_COMMAND = "reset_all_confirm"
+
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
@@ -89,42 +92,86 @@ class ResetAllContextsPlugin(Star):
             )
             conn.commit()
 
-        total_messages = sum(self._message_count(row.get("content")) for row in rows_to_clear)
+        total_messages = sum(
+            self._message_count(row.get("content")) for row in rows_to_clear
+        )
         return len(rows), len(rows_to_clear), total_messages
 
+    @staticmethod
+    def _first_token(message: str) -> str:
+        return (message or "").strip().split(maxsplit=1)[0] if (message or "").strip() else ""
+
+    def _invoked_command_text(self, event: AstrMessageEvent, command_name: str) -> str:
+        token = self._first_token(str(getattr(event, "message_str", "") or ""))
+        if token.endswith(command_name):
+            return token
+        return command_name
+
+    def _suggest_command(self, event: AstrMessageEvent, command_name: str) -> str:
+        preview_token = self._invoked_command_text(event, self.PREVIEW_COMMAND)
+        if preview_token.endswith(self.PREVIEW_COMMAND):
+            prefix = preview_token[: -len(self.PREVIEW_COMMAND)]
+            return f"{prefix}{command_name}"
+        return command_name
+
+    def _extract_arg_text(
+        self,
+        event: AstrMessageEvent,
+        command_name: str,
+        args: tuple[Any, ...],
+    ) -> str:
+        if args:
+            text = " ".join(str(arg) for arg in args if arg is not None).strip()
+            if text:
+                return text
+
+        message = str(getattr(event, "message_str", "") or "").strip()
+        if not message:
+            return ""
+        parts = message.split(maxsplit=1)
+        if len(parts) == 1:
+            return ""
+
+        command_token, rest = parts
+        if command_token.endswith(command_name):
+            return rest.strip()
+        return rest.strip()
+
     @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("reset_all_preview")
+    @filter.command(PREVIEW_COMMAND)
     async def reset_all_preview(self, event: AstrMessageEvent):
         try:
             total_rows, nonempty_rows, total_messages = self._analyze()
+            confirm_command = self._suggest_command(event, self.CONFIRM_COMMAND)
             yield event.plain_result(
                 "批量重置预览：\n"
                 f"- 会话总数：{total_rows}\n"
                 f"- 有短期上下文的会话：{nonempty_rows}\n"
                 f"- 预计清空消息条数：{total_messages}\n"
-                f"\n确认执行请发送：/reset_all_confirm {self._confirm_word()}"
+                f"\n确认执行请发送：{confirm_command} {self._confirm_word()}"
             )
         except Exception as e:
             logger.error(f"[ResetAllContexts] 预览失败: {e}", exc_info=True)
             yield event.plain_result(f"预览失败：{e}")
 
     @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("reset_all_confirm")
-    async def reset_all_confirm(self, event: AstrMessageEvent):
+    @filter.command(CONFIRM_COMMAND)
+    async def reset_all_confirm(self, event: AstrMessageEvent, *args):
         confirm_word = self._confirm_word()
-        message = str(getattr(event, "message_str", "") or "").strip()
-        given = message.replace("/reset_all_confirm", "", 1).strip()
+        given = self._extract_arg_text(event, self.CONFIRM_COMMAND, args)
+        invoked_command = self._invoked_command_text(event, self.CONFIRM_COMMAND)
+
         if given != confirm_word:
             yield event.plain_result(
                 "确认词不匹配，未执行。\n"
-                f"如需执行，请发送：/reset_all_confirm {confirm_word}"
+                f"如需执行，请发送：{invoked_command} {confirm_word}"
             )
             return
 
         try:
             total_rows, cleared_rows, total_messages = self._reset_all()
             yield event.plain_result(
-                "已批量重置 AstrBot 短期上下文。\n"
+                "批量重置完成。\n"
                 f"- 会话总数：{total_rows}\n"
                 f"- 已清空会话：{cleared_rows}\n"
                 f"- 已清空消息条数：{total_messages}"
