@@ -118,13 +118,7 @@ class ResetAllContextsPlugin(Star):
         self,
         event: AstrMessageEvent,
         command_name: str,
-        args: tuple[Any, ...],
     ) -> str:
-        if args:
-            text = " ".join(str(arg) for arg in args if arg is not None).strip()
-            if text:
-                return text
-
         message = str(getattr(event, "message_str", "") or "").strip()
         if not message:
             return ""
@@ -156,9 +150,9 @@ class ResetAllContextsPlugin(Star):
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command(CONFIRM_COMMAND)
-    async def reset_all_confirm(self, event: AstrMessageEvent, *args):
+    async def reset_all_confirm(self, event: AstrMessageEvent):
         confirm_word = self._confirm_word()
-        given = self._extract_arg_text(event, self.CONFIRM_COMMAND, args)
+        given = self._extract_arg_text(event, self.CONFIRM_COMMAND)
         invoked_command = self._invoked_command_text(event, self.CONFIRM_COMMAND)
 
         if given != confirm_word:
