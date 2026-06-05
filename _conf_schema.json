@@ -1,0 +1,14 @@
+{
+  "db_path": {
+    "description": "AstrBot 数据库路径",
+    "type": "string",
+    "default": "/AstrBot/data/data_v4.db",
+    "hint": "Docker 默认通常是 /AstrBot/data/data_v4.db"
+  },
+  "confirm_word": {
+    "description": "确认词",
+    "type": "string",
+    "default": "确认重置全部",
+    "hint": "执行命令必须带上这个确认词，防止误触"
+  }
+}
