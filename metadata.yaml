@@ -1,7 +1,7 @@
 name: astrbot_plugin_reset_all_contexts
 desc: 批量重置 AstrBot 所有会话的短期上下文
-version: 1.0.0
-author: Codex
+version: 2.0.0
+author: 菌菌
 repo: ""
 display_name: 批量重置上下文
 short_desc: 管理员命令，一次清空所有群聊和私聊的 AstrBot 短期上下文
